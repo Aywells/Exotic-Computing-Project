@@ -12,10 +12,13 @@ from Bio.pairwise2 import format_alignment
 
 # testing
 # filename = 'example_net.txt'
+# filename = 'rcsb_pdb_5FKW.fasta'
 # graph = read_graph(filename)
-# seq1 = gen_rand_strand(1,15)
-# seq2 = gen_rand_strand(1,10)
-# seqs = [seq1,seq2]
+# seq1 = (gen_rand_strand(1,15))[0]
+# seq2 = (gen_rand_strand(1,10))[0]
+# seqs = [seq1,seq2]    
+# seq1 = 'TAGCTAGCCGATCA'
+# seq2 = 'ATCGATAGCTA'
 
 def gen_rand_strand(num_strands,len_strand):
 
@@ -26,7 +29,7 @@ def gen_rand_strand(num_strands,len_strand):
         strand = ''.join(random.choice(bases) for _ in range(len_strand))
         strand_list.append(strand)
 
-    print("Generated DNA sequence(s) are in FASTA format (3':__:5').")
+    print("Generated DNA sequence(s) are in FASTA format, i.e. (3':__:5').")
     seq_heatmap(strand_list)
 
     return strand_list
@@ -38,8 +41,10 @@ def load_fasta_strand(fasta_path):
         for line in fasta_file:
             if "32630" in line:
                 strand_list.append(str(next(fasta_file)).strip())
+            else:
+                print("ERROR: file does not contain DNA sequence information")
     
-    print("Extracted DNA sequences from FASTA file (3':__:5').")
+    print("Extracted DNA sequences from FASTA file, (3':__:5').")
     seq_heatmap(strand_list)
     
     return strand_list
@@ -61,7 +66,7 @@ def seq_complement(single_strand,im_flag=True):
         
     if im_flag == True:
         seq_heatmap(strand_complement,True)
-        print("NOTE: Generated complement strand is in FASTA (5':__:3') format")
+        print("NOTE: Generated complement strand is NOT in FASTA format, i.e., (5':__:3')")
     
     return strand_complement
 
@@ -131,11 +136,132 @@ def seq_heatmap(seq, comp_flag=False):
 
         plt.show()
 
+def LCCS(seq1, seq2):
+    m, n = len(seq1), len(seq2)
+    # Initialize the DP table
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+
+    max_length = 0
+    end_seq1 = 0
+
+    # Fill the DP table
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if seq1[i - 1] == seq2[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+                if dp[i][j] > max_length:
+                    max_length = dp[i][j]
+                    end_seq1 = i
+
+    # Calculate starting positions
+    start_seq1 = end_seq1 - max_length
+
+    # Find the starting position in seq2
+    start_seq2 = -1
+    for j in range(n):
+        if seq2[j:j + max_length] == seq1[start_seq1:start_seq1 + max_length]:
+            start_seq2 = j
+            break
+
+    return max_length, start_seq1, start_seq2
+
+def seq_renature(seq1, seq2):
+    
+    if type(seq1) != str:
+        print("ERROR: Strands must be a objecttype:string, not objecttype:",str(type(seq1)))
+    elif type(seq2) != str:
+        print("ERROR: Strands must be a objecttype:string, not objecttype:",str(type(seq2)))
+        return
+    
+    print("Assuming that sequence 1 and 2 are in FASTA (3':__:5') and (5':__:3') format, respectively.")
+    
+    seq2_comp = seq_complement(seq2,False)
+    
+    print("Performing LCCS analysis...")
+    length,start1,start2 = LCCS(seq1,seq2_comp)
+    
+    seq1_len = ''
+    seq2_len = ''
+    seq1_LCCS = ''
+    seq2_LCCS = ''
+    
+    if len(seq1) > len(seq2):
+        if start1 > start2:
+            seq2_len = " " * (start1-start2) + seq2 + " " * abs(len(seq1) - ((start1-start2) + len(seq2)))
+            seq2_LCCS = "-" * (start1) + seq2[start2:start2+length] + "-" * (len(seq2_len)-((start1)+len(seq2[start2:start2+length])))
+            seq1_len = seq1 + " " * abs(len(seq2_len)-len(seq1))
+            seq1_LCCS = "-" * (start1) + seq1[start1:start1+length] + "-" * (len(seq1_len)-((start1)+len(seq1[start1:start1+length])))
+        elif start1 < start2:
+            seq1_len = " " * (start2-start1) + seq1
+            seq1_LCCS = "-" * (start2) + seq1[start1:start1+length] + "-" * (len(seq1_len)-((start2)+len(seq1[start1:start1+length])))
+            seq2_len = seq2 + " " * abs(len(seq1_len) - len(seq2))
+            seq2_LCCS = "-" * (start2) + seq2[start2:start2+length] + "-" * (len(seq2_len)-((start2)+len(seq2[start2:start2+length])))
+            
+    elif len(seq2) > len(seq1):
+        if start1 > start2:
+            seq2_len = " " * (start1-start2) + seq2 + " " * abs(len(seq1) - ((start1-start2) + len(seq2)))
+            seq2_LCCS = "-" * (start1) + seq2[start2:start2+length] + "-" * (len(seq2_len)-((start1)+len(seq2[start2:start2+length])))
+            seq1_len = seq1 + " " * abs(len(seq2_len)-len(seq1))
+            seq1_LCCS = "-" * (start1) + seq1[start1:start1+length] + "-" * (len(seq1_len)-((start1)+len(seq1[start1:start1+length])))
+        elif start1 < start2:
+            seq1_len = " " * (start2-start1) + seq1
+            seq1_LCCS = "-" * (start2) + seq1[start1:start1+length] + "-" * (len(seq1_len)-((start2)+len(seq1[start1:start1+length])))
+            seq2_len = seq2 + " " * abs(len(seq1_len) - len(seq2))
+            seq2_LCCS = "-" * (start2) + seq2[start2:start2+length] + "-" * (len(seq2_len)-((start2)+len(seq2[start2:start2+length])))
+
+    
+    # seq1_new = '-' * start1 + seq1_len[start1:start1+length] + '-' * (len(seq1) - (len(seq1_len[start1:start1+length])+start1))
+    # seq2_new = '-' * start2 + seq2_len[start2:start2+length] + '-' * (len(seq1) - (len(seq2_len[start2:start2+length])+start2))
+    # print("\nLCSS length and location:\n")
+    # print(f"LCSS length: {length}\n")
+    # print(seq1_new)
+    # print(seq2_new)
+    
+    # start1 = seq1_len.find(seq1)
+    # end1 = start1 + len(seq1)
+    
+    # start2 = seq2_len.find(seq2)
+    # end2 = start2 + len(seq2)
+    
+    # seq1_new = '-' * start1 + seq1 + '-' * (end1-len(seq1_len))
+    # seq2_new = '-' * start2 + seq2 + '-' * (end2-len(seq2_len))
+    
+    nucleotide_mapping = {'A': 0, 'C': 1, 'G': 2, 'T': 3,'-': 4}
+    seq_new = [seq1_LCCS,seq2_LCCS]
+    
+    seq = [seq1_len,seq2_len]
+    
+    numerical_seq = []
+    for i in range(len(seq_new)):
+        numerical_seq.append([nucleotide_mapping[base] for base in seq_new[i]])
+    
+    dna_array = np.array(numerical_seq)
+
+    cmap = sns.color_palette(['#db5f57', '#d3db57', '#57db5f', '#57d3db','white'])
+
+    plt.figure(figsize=(len(seq1_len), len(numerical_seq)))
+    ax = sns.heatmap(dna_array, cmap=cmap, cbar=False, annot=False, linewidths=0.5)
+    plt.xticks([])
+    plt.yticks([0.5, 1.5], ['1       \n((3\':__:5\'))', '2       \n((3\':__:5\'))'])
+    plt.ylabel('Sequence #')
+    
+    for i in range(len(seq1_len)):
+        for j in range(len(numerical_seq)):
+            ax.text(i + 0.5, j + 0.5, seq[j][i] if j == 0 else seq[j][i], ha='center', va='center', color='black')
+
+    plt.show()
+
 def seq_alignment(seq1, seq2):
+
+    if type(seq1) != str:
+        print("ERROR: Strands must be a objecttype:string, not objecttype:",str(type(seq1)))
+    elif type(seq2) != str:
+        print("ERROR: Strands must be a objecttype:string, not objecttype:",str(type(seq2)))
+        return
 
     print("Assuming that BOTH sequence 1 and 2 are in FASTA (3':__:5') format.")
     sequence1 = Seq(seq1)
-    sequence2 = Seq(seq2[::-1])
+    sequence2 = Seq(seq2)
 
     print("Performing alignment...")
     alignments = pairwise2.align.globalxx(sequence1, sequence2) 
@@ -164,14 +290,12 @@ def seq_alignment(seq1, seq2):
     
     dna_array = np.array(numerical_seq)
 
-
     cmap = sns.color_palette(['#db5f57', '#d3db57', '#57db5f', '#57d3db','white'])
-
 
     plt.figure(figsize=(max_len, len(numerical_seq)))
     ax = sns.heatmap(dna_array, cmap=cmap, cbar=False, annot=False, linewidths=0.5)
     plt.xticks([])
-    plt.yticks([0.5, 1.5], ['1       \n((3\':__:5\'))', '2       \n((5\':__:3\'))'])
+    plt.yticks([0.5, 1.5], ['1       \n((3\':__:5\'))', '2       \n((3\':__:5\'))'])
     plt.ylabel('Sequence #')
     
     for i in range(max_len):
@@ -277,7 +401,7 @@ def adleman_sim(graph):
             growing_strand = ""
 
     if len(path_strands) == 0:
-        print("Warning: randomization of paths did not yield anything (potentially due to the number of edges).\nIncrease edge list multiplier, if possible.")
+        print("WARNING: randomization of paths did not yield anything (potentially due to the number of edges).\nIncrease edge list multiplier, if possible.")
     else:
         print(f"\nStrands Created: {len(path_strands)} ")
 
@@ -317,3 +441,4 @@ def adleman_sim(graph):
 
     nx.draw(graph, node_color='red', node_size=500, with_labels=True, edge_color=edge_colors, arrowsize=10)
     plt.show()
+    
